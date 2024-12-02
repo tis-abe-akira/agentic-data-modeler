@@ -115,14 +115,16 @@ class ResultAggregator:
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
 
-    def run(self, query: str, response_definition: str, results: list[str]) -> str:
+    def run(self, query: str, optimized_goal: str, response_definition: str, results: list[str]) -> str:
         logging.info(f"ResultAggregator: Running with query: {query}")
+        logging.info(f"ResultAggregator: Running with optimized_goal: {optimized_goal}")
         logging.info(f"ResultAggregator: Running with response_definition: {response_definition}")
         logging.info(f"ResultAggregator: Running with results: {results}")
         prompt = ChatPromptTemplate.from_template(
-            "与えられた目標:\n{query}\n\n"
+            "ユーザー入力:\n{query}\n\n"
+            "与えられた目標:\n{optimized_goal}\n\n"
             "調査結果:\n{results}\n\n"
-            "与えられた目標に対し、調査結果を用いて、以下の指示に基づいてレスポンスを生成してください。\n"
+            "ユーザー入力と与えられた目標に対し、調査結果を用いて、以下の指示に基づいてレスポンスを生成してください。\n"
             "Mermeid形式のER図のコードは、省略せずにそのまま出力してください。\n"
             "Mermeid形式のER図のコードに限り、英語で出力してください。\n"
             "{response_definition}"
@@ -200,8 +202,10 @@ class SinglePathPlanGeneration:
     def _aggregate_results(
         self, state: SinglePathPlanGenerationState
     ) -> dict[str, Any]:
+        print(f"***** _aggregate_results with optimized_goal : {state.optimized_goal} ")
         final_output = self.result_aggregator.run(
-            query=state.optimized_goal,
+            query=state.query,
+            optimized_goal=state.optimized_goal,
             response_definition=state.optimized_response,
             results=state.results,
         )
