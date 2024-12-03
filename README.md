@@ -19,5 +19,5 @@ uv add langchain-core==0.3.0 langchain-community==0.3.0 langgraph==0.2.22 langch
 指示文章が長い場合には、ファイル (`task.txt` など） に書いて、そのファイルを引数に指定する。
 
 ```console
-uv run python -m single_path_plan_generation.main --task "$(cat task.txt)"
+uv run python -m single_path_plan_generation.main --task "$(cat task2.txt)"
 ```

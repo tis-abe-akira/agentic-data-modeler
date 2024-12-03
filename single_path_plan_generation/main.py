@@ -58,23 +58,6 @@ class QueryDecomposer:
             "4. タスクは日本語で出力すること。\n"
             "目標: {query}"
         )
-        # prompt = ChatPromptTemplate.from_template(
-        #     f"CURRENT_DATE: {self.current_date}\n"
-        #     "-----\n"
-        #     "タスク: 与えられた目標を以下に指定された基本手順に沿ってタスクに分解してください。\n"
-        #     "\n"
-        #     "基本手順:\n"
-        #     "1. エンティティを抽出する。(提示されたユースケースの名詞、動詞に着目)\n"
-        #     "2. 洗い出したエンティティを[リソース]と[イベント]に分類する。イベントに分類する基準は属性に”日時・日付（イベントが実行された日時・日付）”を持つものである。\n"
-        #     "3. イベントエンティティには1つの日時属性しかもたないようにする。\n"
-        #     "4. リソースに隠されたイベントを抽出する。（リソースに更新日時をもちたい場合にはイベントが隠されている可能性がある）\n"
-        #     "5. エンティティ間の依存度が強すぎる場合には、交差エンティティ（関連エンティティ）を導入する。（カーディナリティが多対多の関係を持つような場合に導入する）\n"
-        #     "守るべきルール:\n"
-        #     "1. 以下の行動だけで目標を達成すること。決して指定された以外の行動をとらないこと。\n"
-        #     "   - インターネットを利用して、ユースケースの業務知識を深めるための調査を行う。\n"
-        #     "2. タスクは日本語で出力すること。\n"
-        #     "目標: {query}"
-        # )
         chain = prompt | self.llm.with_structured_output(DecomposedTasks)
         return chain.invoke({"query": query})
 
@@ -84,7 +67,6 @@ class TaskExecutor:
         self.llm = llm
         self.tools = [
             TavilySearchResults(max_results=3),
-            # UnstructuredURLLoader(urls=["https://scrapbox.io/kawasima/%E3%82%A4%E3%83%9F%E3%83%A5%E3%83%BC%E3%82%BF%E3%83%96%E3%83%AB%E3%83%87%E3%83%BC%E3%82%BF%E3%83%A2%E3%83%87%E3%83%AB"]),
         ]
 
     def run(self, task: str) -> str:
@@ -136,6 +118,7 @@ class ResultAggregator:
         return chain.invoke(
             {
                 "query": query,
+                "optimized_goal": optimized_goal,
                 "results": results_str,
                 "response_definition": response_definition,
             }
@@ -202,7 +185,6 @@ class SinglePathPlanGeneration:
     def _aggregate_results(
         self, state: SinglePathPlanGenerationState
     ) -> dict[str, Any]:
-        print(f"***** _aggregate_results with optimized_goal : {state.optimized_goal} ")
         final_output = self.result_aggregator.run(
             query=state.query,
             optimized_goal=state.optimized_goal,
