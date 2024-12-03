@@ -4,7 +4,7 @@ AIエージェントによるデータモデリングツールです。
 
 ## 説明はこちら
 
-[TBD]
+[Qiita記事](https://qiita.com/akiraabe/items/b25bcd47978f90319aaf)
 
 ## ライブラリインストール
 
