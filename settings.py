@@ -19,13 +19,14 @@ class Settings(BaseSettings):
     LANGCHAIN_ENDPOINT: str = "https://api.smith.langchain.com"
     LANGCHAIN_API_KEY: str = ""
     LANGCHAIN_PROJECT: str = "my-agent2"
+    KNOWLEDGE_BASE_ID: str = ""
 
     # for Application
     # openai_smart_model: str = "gpt-4o-mini"
     openai_smart_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
     # anthropic_smart_model: str = "claude-3-5-sonnet-20240620"
-    anthropic_smart_model: str = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    anthropic_smart_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
     temperature: float = 0.0
     default_reflection_db_path: str = "tmp/reflection_db.json"
 
