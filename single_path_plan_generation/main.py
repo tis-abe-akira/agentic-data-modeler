@@ -72,7 +72,14 @@ class QueryDecomposer:
 class TaskExecutor:
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
-        self.tools = [TavilySearchResults(max_results=3)]
+        self.tools = [
+            TavilySearchResults(
+                max_results=3,
+                include_domains=[
+                    "scrapbox.io",
+                ],
+            )
+        ]
 
     def run(self, task: str) -> str:
         logging.info(f"---- TaskExecutor: Running with task: {task}")
@@ -87,9 +94,12 @@ class TaskExecutor:
                             f"タスク: {task}\n\n"
                             "要件:\n"
                             "1. 必要に応じて提供されたツールを使用してください。\n"
-                            "2. 実行は徹底的かつ包括的に行ってください。\n"
-                            "3. 可能な限り具体的な事実やデータを提供してください。\n"
-                            "4. 発見した内容を明確に要約してください。\n"
+                            "2. 検索を行う際は、以下のキーワードを必ず含めてください：\n"
+                            "   - 'immutable data model'\n"
+                            "   - 'イミュータブルデータモデル'\n"
+                            "3. 実行は徹底的かつ包括的に行ってください。\n"
+                            "4. 可能な限り具体的な事実やデータを提供してください。\n"
+                            "5. 発見した内容を明確に要約してください。\n"
                         ),
                     )
                 ]
