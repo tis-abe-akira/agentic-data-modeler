@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_community.retrievers import AmazonKnowledgeBasesRetriever
 from langchain_core.tools.retriever import create_retriever_tool
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -16,9 +15,13 @@ from pydantic import BaseModel, Field
 from response_optimizer.main import ResponseOptimizer
 import logging
 from settings import Settings
+
 settings = Settings()
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 class DecomposedTasks(BaseModel):
     values: list[str] = Field(
@@ -56,7 +59,6 @@ class QueryDecomposer:
             "タスク: 与えられた目標を具体的で実行可能なタスクに分解してください。\n"
             "要件:\n"
             "1. 以下の行動だけで目標を達成すること。決して指定された以外の行動をとらないこと。\n"
-            "   - Amazon Bedrock KnowledgeBaseを利用して、イミュータブルデータモデルに関する知識を取得する。\n"
             "   - インターネットを利用して、目標を達成するための一般公開情報の調査を行う。\n"
             "2. 各タスクは具体的かつ詳細に記載されており、単独で実行ならびに検証可能な情報を含めること。一切抽象的な表現を含まないこと。\n"
             "3. タスクは実行可能な順序でリスト化すること。\n"
@@ -70,21 +72,7 @@ class QueryDecomposer:
 class TaskExecutor:
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
-
-        retriever = AmazonKnowledgeBasesRetriever(
-            knowledge_base_id=settings.KNOWLEDGE_BASE_ID,
-            retrieval_config={"vectorSearchConfiguration": {"numberOfResults": 10}},
-        )
-        tool = create_retriever_tool(
-            retriever,
-            "BedrockKnowledgeBasesRetriever",
-            "With this tool, you can search the Amazon Bedrock KnowledgeBase to gain insights into Immutable Data Modeling.",
-        )
-
-        self.tools = [
-            tool,
-            TavilySearchResults(max_results=3)
-        ]
+        self.tools = [TavilySearchResults(max_results=3)]
 
     def run(self, task: str) -> str:
         logging.info(f"---- TaskExecutor: Running with task: {task}")
@@ -114,10 +102,18 @@ class ResultAggregator:
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
 
-    def run(self, query: str, optimized_goal: str, response_definition: str, results: list[str]) -> str:
+    def run(
+        self,
+        query: str,
+        optimized_goal: str,
+        response_definition: str,
+        results: list[str],
+    ) -> str:
         logging.info(f"ResultAggregator: Running with query: {query}")
         logging.info(f"ResultAggregator: Running with optimized_goal: {optimized_goal}")
-        logging.info(f"ResultAggregator: Running with response_definition: {response_definition}")
+        logging.info(
+            f"ResultAggregator: Running with response_definition: {response_definition}"
+        )
         logging.info(f"ResultAggregator: Running with results: {results}")
         prompt = ChatPromptTemplate.from_template(
             "ユーザー入力:\n{query}\n\n"
@@ -129,7 +125,7 @@ class ResultAggregator:
             "{response_definition}"
         )
         results_str = "\n\n".join(
-            f"Info {i+1}:\n{result}" for i, result in enumerate(results)
+            f"Info {i + 1}:\n{result}" for i, result in enumerate(results)
         )
         chain = prompt | self.llm | StrOutputParser()
         return chain.invoke(
@@ -237,14 +233,14 @@ def main():
     print(result)
 
     # Mermaidコードブロックを検出
-    mermaid_match = re.search(r'```mermaid\n(.*?)\n```', result, re.DOTALL)
+    mermaid_match = re.search(r"```mermaid\n(.*?)\n```", result, re.DOTALL)
     if mermaid_match:
         mermaid_code = mermaid_match.group(1)
         # Kroki APIを使用して画像を取得
         response = requests.post(
-            'https://kroki.io/mermaid/png',
-            data=mermaid_code.encode('utf-8'),
-            headers={'Content-Type': 'text/plain'}
+            "https://kroki.io/mermaid/png",
+            data=mermaid_code.encode("utf-8"),
+            headers={"Content-Type": "text/plain"},
         )
         if response.status_code == 200:
             # 一時ファイルに保存
@@ -255,6 +251,7 @@ def main():
             os.system(f'open "{image_filepath}"')
         else:
             print("Mermaid図の生成に失敗しました。")
+
 
 if __name__ == "__main__":
     main()
