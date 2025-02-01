@@ -10,3 +10,7 @@ wheels/
 .env
 
 .DS_Store
+
+task-*.txt
+
+output/
