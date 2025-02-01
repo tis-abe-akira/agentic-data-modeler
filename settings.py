@@ -9,7 +9,15 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    OPENAI_API_KEY: str
+    # OpenAI関連の設定を削除または非推奨化
+    # openai_api_key: str
+    # openai_smart_model: str
+    
+    # Bedrock関連の設定を追加
+    aws_region: str = "us-east-1"
+    bedrock_model_id: str = "anthropic.claude-3-sonnet-20240229-v1:0"
+    temperature: float = 0.7
+
     ANTHROPIC_API_KEY: str = ""
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
@@ -23,11 +31,9 @@ class Settings(BaseSettings):
 
     # for Application
     # openai_smart_model: str = "gpt-4o-mini"
-    openai_smart_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
     # anthropic_smart_model: str = "claude-3-5-sonnet-20240620"
     anthropic_smart_model: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-    temperature: float = 0.0
     default_reflection_db_path: str = "tmp/reflection_db.json"
 
     def __init__(self, **values):

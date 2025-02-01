@@ -1,8 +1,9 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+from langchain_aws import ChatBedrock
 from passive_goal_creator.main import Goal, PassiveGoalCreator
 from pydantic import BaseModel, Field
 import logging
+from botocore.exceptions import ClientError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -16,7 +17,7 @@ class OptimizedGoal(BaseModel):
 
 
 class PromptOptimizer:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: ChatBedrock):
         self.llm = llm
 
     def run(self, query: str) -> OptimizedGoal:
@@ -54,17 +55,23 @@ def main():
     parser.add_argument("--task", type=str, required=True, help="実行するタスク")
     args = parser.parse_args()
 
-    llm = ChatOpenAI(
-        model=settings.openai_smart_model, temperature=settings.temperature
-    )
+    try:
+        llm = ChatBedrock(
+            model_id=settings.bedrock_model_id,
+            region_name=settings.aws_region,
+            temperature=settings.temperature,
+        )
 
-    passive_goal_creator = PassiveGoalCreator(llm=llm)
-    goal: Goal = passive_goal_creator.run(query=args.task)
+        passive_goal_creator = PassiveGoalCreator(llm=llm)
+        goal: Goal = passive_goal_creator.run(query=args.task)
 
-    prompt_optimizer = PromptOptimizer(llm=llm)
-    optimised_goal: OptimizedGoal = prompt_optimizer.run(query=goal.text)
+        prompt_optimizer = PromptOptimizer(llm=llm)
+        optimised_goal: OptimizedGoal = prompt_optimizer.run(query=goal.text)
 
-    print(f"{optimised_goal.text}")
+        print(f"{optimised_goal.text}")
+    except ClientError as e:
+        logging.error(f"AWS Bedrock error: {e}")
+        raise
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from langchain_core.tools.retriever import create_retriever_tool
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from langchain_aws import ChatBedrock
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import create_react_agent
 from passive_goal_creator.main import Goal, PassiveGoalCreator
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field
 from response_optimizer.main import ResponseOptimizer
 import logging
 from settings import Settings
+from botocore.exceptions import ClientError
 
 settings = Settings()
 
@@ -47,7 +49,7 @@ class SinglePathPlanGenerationState(BaseModel):
 
 
 class QueryDecomposer:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: ChatBedrock):
         self.llm = llm
         self.current_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -63,14 +65,34 @@ class QueryDecomposer:
             "2. 各タスクは具体的かつ詳細に記載されており、単独で実行ならびに検証可能な情報を含めること。一切抽象的な表現を含まないこと。\n"
             "3. タスクは実行可能な順序でリスト化すること。\n"
             "4. タスクは日本語で出力すること。\n"
+            "5. 必ず3つ以上5つ以下のタスクに分解してください。\n"
+            "6. 番号やプレフィックスは付けずに、各タスクを改行で区切って出力してください。\n"
             "目標: {query}"
         )
-        chain = prompt | self.llm.with_structured_output(DecomposedTasks)
-        return chain.invoke({"query": query})
+
+        chain = (
+            prompt | self.llm | StrOutputParser() | (lambda x: self._process_output(x))
+        )
+
+        result = chain.invoke({"query": query})
+        return result
+
+    def _process_output(self, text: str) -> DecomposedTasks:
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+        lines = [line.split(". ", 1)[-1] if ". " in line else line for line in lines]
+        lines = [line.split(") ", 1)[-1] if ") " in line else line for line in lines]
+
+        if len(lines) < 3:
+            raise ValueError("タスクの分解に失敗しました。最低3つのタスクが必要です。")
+        if len(lines) > 5:
+            lines = lines[:5]
+
+        return DecomposedTasks(values=lines)
 
 
 class TaskExecutor:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: ChatBedrock):
         self.llm = llm
         self.tools = [
             TavilySearchResults(
@@ -93,13 +115,12 @@ class TaskExecutor:
                             "次のタスクを実行し、詳細な回答を提供してください。\n\n"
                             f"タスク: {task}\n\n"
                             "要件:\n"
-                            "1. 必要に応じて提供されたツールを使用してください。\n"
-                            "2. 検索を行う際は、以下のキーワードを必ず含めてください：\n"
+                            "1. 提供されたツールを使用して情報を収集してください。\n"
+                            "2. 以下のキーワードに関連する情報を重点的に探してください：\n"
                             "   - 'immutable data model'\n"
                             "   - 'イミュータブルデータモデル'\n"
-                            "3. 実行は徹底的かつ包括的に行ってください。\n"
-                            "4. 可能な限り具体的な事実やデータを提供してください。\n"
-                            "5. 発見した内容を明確に要約してください。\n"
+                            "3. 情報は包括的に収集し、具体的な事実やデータを重視してください。\n"
+                            "4. 結果は明確に構造化して提示してください。\n"
                         ),
                     )
                 ]
@@ -109,7 +130,7 @@ class TaskExecutor:
 
 
 class ResultAggregator:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: ChatBedrock):
         self.llm = llm
 
     def run(
@@ -229,38 +250,46 @@ def main():
     import tempfile
     import os
 
-    parser = argparse.ArgumentParser(
-        description="SinglePathPlanGenerationを使用してタスクを実行します"
-    )
-    parser.add_argument("--task", type=str, required=True, help="実行するタスク")
-    args = parser.parse_args()
-
-    llm = ChatOpenAI(
-        model=settings.openai_smart_model, temperature=settings.temperature
-    )
-    agent = SinglePathPlanGeneration(llm=llm)
-    result = agent.run(args.task)
-    print(result)
-
-    # Mermaidコードブロックを検出
-    mermaid_match = re.search(r"```mermaid\n(.*?)\n```", result, re.DOTALL)
-    if mermaid_match:
-        mermaid_code = mermaid_match.group(1)
-        # Kroki APIを使用して画像を取得
-        response = requests.post(
-            "https://kroki.io/mermaid/png",
-            data=mermaid_code.encode("utf-8"),
-            headers={"Content-Type": "text/plain"},
+    try:
+        parser = argparse.ArgumentParser(
+            description="SinglePathPlanGenerationを使用してタスクを実行します"
         )
-        if response.status_code == 200:
-            # 一時ファイルに保存
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
-                tmp_file.write(response.content)
-                image_filepath = tmp_file.name
-            # 画像を表示
-            os.system(f'open "{image_filepath}"')
-        else:
-            print("Mermaid図の生成に失敗しました。")
+        parser.add_argument("--task", type=str, required=True, help="実行するタスク")
+        args = parser.parse_args()
+
+        llm = ChatBedrock(
+            model_id=settings.bedrock_model_id,
+            region_name=settings.aws_region,
+            model_kwargs={"temperature": settings.temperature},
+        )
+        agent = SinglePathPlanGeneration(llm=llm)
+        result = agent.run(args.task)
+        print(result)
+
+        # Mermaidコードブロックを検出
+        mermaid_match = re.search(r"```mermaid\n(.*?)\n```", result, re.DOTALL)
+        if mermaid_match:
+            mermaid_code = mermaid_match.group(1)
+            # Kroki APIを使用して画像を取得
+            response = requests.post(
+                "https://kroki.io/mermaid/png",
+                data=mermaid_code.encode("utf-8"),
+                headers={"Content-Type": "text/plain"},
+            )
+            if response.status_code == 200:
+                # 一時ファイルに保存
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".png"
+                ) as tmp_file:
+                    tmp_file.write(response.content)
+                    image_filepath = tmp_file.name
+                # 画像を表示
+                os.system(f'open "{image_filepath}"')
+            else:
+                print("Mermaid図の生成に失敗しました。")
+    except ClientError as e:
+        logging.error(f"AWS Bedrock error: {e}")
+        raise
 
 
 if __name__ == "__main__":

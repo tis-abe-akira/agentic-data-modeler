@@ -1,7 +1,10 @@
+# -*- coding: utf-8 -*-
+
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+from langchain_aws import ChatBedrock
 from pydantic import BaseModel, Field
 import logging
+from botocore.exceptions import ClientError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -16,7 +19,7 @@ class Goal(BaseModel):
 class PassiveGoalCreator:
     def __init__(
         self,
-        llm: ChatOpenAI,
+        llm: ChatBedrock,
     ):
         self.llm = llm
 
@@ -26,7 +29,7 @@ class PassiveGoalCreator:
             "ユーザーの入力を分析し、明確で実行可能な目標を生成してください。\n"
             "要件:\n"
             "1. エンティティを抽出する。(提示されたユースケースの名詞、動詞に着目)\n"
-            "2. 洗い出したエンティティを[リソース]と[イベント]に分類する。イベントに分類する基準は属性に”日時・日付（イベントが実行された日時・日付）”を持つものである。\n"
+            "2. 洗い出したエンティティを[リソース]と[イベント]に分類する。イベントに分類する基準は属性に「日時・日付（イベントが実行された日時・日付）」を持つものである。\n"
             "3. イベントエンティティには1つの日時属性しかもたないようにする。\n"
             "4. リソースに隠されたイベントを抽出する。（リソースに更新日時をもちたい場合にはイベントが隠されている可能性がある）\n"
             "  例）社員情報（リソース）の更新日時がある場合には、社員異動（イベントエンティティ）を抽出する。\n"
@@ -51,13 +54,19 @@ def main():
     parser.add_argument("--task", type=str, required=True, help="実行するタスク")
     args = parser.parse_args()
 
-    llm = ChatOpenAI(
-        model=settings.openai_smart_model, temperature=settings.temperature
-    )
-    goal_creator = PassiveGoalCreator(llm=llm)
-    result: Goal = goal_creator.run(query=args.task)
+    try:
+        llm = ChatBedrock(
+            model_id=settings.bedrock_model_id,
+            region_name=settings.aws_region,
+            temperature=settings.temperature,
+        )
+        goal_creator = PassiveGoalCreator(llm=llm)
+        result: Goal = goal_creator.run(query=args.task)
 
-    print(f"{result.text}")
+        print(f"{result.text}")
+    except ClientError as e:
+        logging.error(f"AWS Bedrock error: {e}")
+        raise
 
 
 if __name__ == "__main__":
